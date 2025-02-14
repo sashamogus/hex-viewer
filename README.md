@@ -17,12 +17,12 @@ odin build .
 
 Currently hex-viewer supports two options
 
-*-o <Int>*: Stands for "offset".
+*-o N*: Stands for "offset".
 When positive number is used, it will skip first bytes.
 When negative number is used, it will read from last part of the file.
 This will be floored to 16 bytes sections eg 15 => 0, 255 => 240.
 
-*-n <Uint>*: Stands for "number".
+*-n N*: Stands for "number".
 This parameter simply specify the number of bytes to read.
 
 ## Examples
