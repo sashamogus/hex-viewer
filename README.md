@@ -39,3 +39,6 @@ hex-viewer data.dat -o -256
 
 # Display 69 bytes starting from 420(416)
 hex-viewer data.dat -n 69 -o 420
+
+# You can also use hexadecimals
+hex-viewer data.dat -n 0x4000 -o 0x1000
