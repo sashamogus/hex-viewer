@@ -46,7 +46,16 @@ parse_int_param :: proc(options: ^Options, args: ^[]string, param_name: string) 
 	}
 	num_str := args[0]
 	args^ = args[1:]
-	num, ok := strconv.parse_int(num_str)
+	
+	// Set base
+	base := 10
+	if strings.has_prefix(num_str, "0x") {
+		base = 16
+		num_str = num_str[2:]
+	}
+	
+	// Parse number
+	num, ok := strconv.parse_int(num_str, base)
 	if !ok {
 		fmt.eprintfln("Parameter %s must be a integer", param_name)
 		os.exit(1)
@@ -197,7 +206,7 @@ main :: proc() {
 
 	data, data_ok := os.read_entire_file(options.file_name)
 	if !data_ok || data == nil {
-		fmt.eprintln("Failed to read file")
+		fmt.eprintfln("Failed to open file (%s)", options.file_name)
 		os.exit(1)
 	}
 
