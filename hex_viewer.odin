@@ -232,6 +232,7 @@ main :: proc() {
 	if start < 0 {
 		start = len(data) + start
 	}
+	start -= start & 0xF // Floor it to 16 bytes
 	
 	// Ending position of the view
 	end := len(data)
