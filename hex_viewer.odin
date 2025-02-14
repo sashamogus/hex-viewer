@@ -5,6 +5,8 @@ import "core:fmt"
 import "core:strings"
 import "core:strconv"
 import "core:os"
+import "core:thread"
+import "core:time"
 
 Options :: struct {
 	file_name: string,
@@ -27,8 +29,8 @@ category_symbol := [Byte_Category]rune {
 	.Non_Ascii = '×',
 }
 
-default_color := "\e[0;37m"
-default_dark  := "\e[0;90m"
+COLOR_RESET :: "\e[0m"
+COLOR_DARK  :: "\e[0;90m"
 
 @(rodata)
 category_color := [Byte_Category]string {
@@ -101,6 +103,96 @@ get_byte_category :: proc(b: u8) -> Byte_Category {
 	return .Non_Ascii
 }
 
+print_data :: proc(data: []u8, start, end: int) {
+	buf := strings.builder_make(0, 65536)
+	
+	first_line := true
+	for line := start; line < end; line += 16 {
+		if line % 256 == 0 || first_line {
+			fmt.sbprint(&buf, COLOR_RESET)
+			fmt.sbprintln(&buf, "┌────────┬─────────────────────────┬─────────────────────────┬────────┬────────┐")
+			first_line = false
+		}
+
+		s := data[line:min(end, line + 16)] // Slice for this line's data
+		
+		// Write line address
+		fmt.sbprint(&buf, COLOR_RESET)
+		fmt.sbprint(&buf, "│")
+		fmt.sbprint(&buf, COLOR_DARK)
+		fmt.sbprintf(&buf, "%08x", line) // NOTE: Assumes the file is smaller than 32-bit limit
+		fmt.sbprint(&buf, COLOR_RESET)
+		fmt.sbprint(&buf, "│")
+		
+		// Write data in hexadecimal
+		for b, i in s {
+			if i == 8 {
+				fmt.sbprint(&buf, COLOR_RESET)
+				fmt.sbprint(&buf, " ┊")
+			}
+			c := get_byte_category(b)
+			fmt.sbprint(&buf, category_color[c])
+			fmt.sbprintf(&buf, " %02x", data[line + i])
+		}
+		// Write dummy data in case it's end of the file
+		for i := len(s); i < 16; i += 1 {
+			if i == 8 {
+				fmt.sbprint(&buf, COLOR_RESET)
+				fmt.sbprint(&buf, " ┊")
+			}
+			fmt.sbprint(&buf, COLOR_DARK)
+			fmt.sbprint(&buf, "   ")
+		}
+		
+		fmt.sbprint(&buf, COLOR_RESET)
+		fmt.sbprint(&buf, " │")
+
+		// Write symbols to represent which category is each byte
+		for b, i in s {
+			if i == 8 {
+				fmt.sbprint(&buf, COLOR_RESET)
+				fmt.sbprint(&buf, "┊")
+			}
+			c := get_byte_category(b)
+			fmt.sbprint(&buf, category_color[c])
+			if c == .Ascii {
+				fmt.sbprint(&buf, rune(b))
+			} else {
+				fmt.sbprint(&buf, category_symbol[c])
+			}
+		}
+		// Write dummy data in case it's end of the file
+		for i := len(s); i < 16; i += 1 {
+			if i == 8 {
+				fmt.sbprint(&buf, COLOR_RESET)
+				fmt.sbprint(&buf, "┊")
+			}
+			fmt.sbprint(&buf, COLOR_DARK)
+			fmt.sbprint(&buf, " ")
+		}
+		
+		fmt.sbprint(&buf, COLOR_RESET)
+		fmt.sbprintln(&buf, "│")
+		
+		if line % 256 == 240 || end - line <= 16 {
+			fmt.sbprint(&buf, COLOR_RESET)
+			fmt.sbprintln(&buf, "└────────┴─────────────────────────┴─────────────────────────┴────────┴────────┘")
+			fmt.print(strings.to_string(buf))
+			strings.builder_reset(&buf)
+		}
+	}
+
+	strings.builder_destroy(&buf)
+}
+
+measure_speed :: proc(proc_to_measure: proc(data: []u8, start, end: int), data: []u8, start, end: int) -> time.Duration {
+	sw: time.Stopwatch
+	time.stopwatch_start(&sw)
+	proc_to_measure(data, start, end)
+	time.stopwatch_stop(&sw)
+	return time.stopwatch_duration(sw)
+}
+
 main :: proc() {
 	options: Options
 	parse_options(&options, os.args[1:])
@@ -122,57 +214,7 @@ main :: proc() {
 		end = min(len(data), start + options.n)
 	}
 	
-	first_line := true
-	for line := start; line < end; line += 16 {
-		free_all(context.temp_allocator)
-		
-		fmt.print(default_color)
-		if line % 256 == 0 || first_line {
-			fmt.println("┌────────┬─────────────────────────┬─────────────────────────┬────────┬────────┐")
-			first_line = false
-		}
-		
-		address_str := fmt.tprintf("%08x", line) // NOTE: Assumes the file is smaller than 32-bit limit
-		fmt.print("│")
-		fmt.print(default_dark)
-		fmt.print(address_str)
-		fmt.print(default_color)
-		fmt.print("│")
-		
-		for i in 0..<16 {
-			if i == 8 {
-				fmt.print(default_color)
-				fmt.print(" ┊")
-			}
-			b := data[line + i]
-			c := get_byte_category(b)
-			fmt.print(category_color[c])
-			fmt.printf(" %02x", data[line + i])
-		}
-		fmt.print(default_color)
-		fmt.print(" │")
-		for i in 0..<16 {
-			if i == 8 {
-				fmt.print("┊")
-			}
-			b := data[line + i]
-			c := get_byte_category(b)
-			fmt.print(category_color[c])
-			if c == .Ascii {
-				fmt.print(rune(b))
-			} else {
-				fmt.print(category_symbol[c])
-			}
-		}
-		fmt.print(default_color)
-		fmt.print("│")
-		fmt.println()
-		
-		if line % 256 == 240 || end - line <= 16 {
-			fmt.print(default_color)
-			fmt.println("└────────┴─────────────────────────┴─────────────────────────┴────────┴────────┘")
-		}
-	}
-
+	speed := measure_speed(print_data, data, start, end)
+	fmt.printfln("Printed in %v", speed)
 }
 
