@@ -1,11 +1,9 @@
 package hex_viewer
 
-import "base:intrinsics"
 import "core:fmt"
 import "core:strings"
 import "core:strconv"
 import "core:os"
-import "core:thread"
 import "core:time"
 
 Options :: struct {
