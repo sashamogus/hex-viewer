@@ -24,6 +24,7 @@ This will be floored to 16 bytes sections eg 15 => 0, 255 => 240.
 
 *-n N*: Stands for "number".
 This parameter simply specify the number of bytes to read.
+This will be ceiled to 16 bytes sections eg 15 => 16, 255 => 256.
 
 ## Examples
 
@@ -42,3 +43,6 @@ hex-viewer data.dat -n 69 -o 420
 
 # You can also use hexadecimals
 hex-viewer data.dat -n 0x4000 -o 0x1000
+
+# Display last 4KiB
+hex-viewer data.dat -o -0x1000

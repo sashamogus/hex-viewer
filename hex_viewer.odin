@@ -34,7 +34,7 @@ COLOR_DARK  :: "\e[0;90m"
 category_color := [Byte_Category]string {
 	.Zero      = "\e[0;90m",
 	.Control   = "\e[0;92m",
-	.Ascii     = "\e[0;96m", // Unused
+	.Ascii     = "\e[0;96m",
 	.Non_Ascii = "\e[0;93m",
 }
 
@@ -46,6 +46,13 @@ parse_int_param :: proc(options: ^Options, args: ^[]string, param_name: string) 
 	}
 	num_str := args[0]
 	args^ = args[1:]
+
+	// Set sign (doing this to cover negative hexadecimal case)
+	sign := 1
+	if strings.has_prefix(num_str, "-") {
+		sign = -1
+		num_str = num_str[1:]
+	}
 	
 	// Set base
 	base := 10
@@ -55,12 +62,12 @@ parse_int_param :: proc(options: ^Options, args: ^[]string, param_name: string) 
 	}
 	
 	// Parse number
-	num, ok := strconv.parse_int(num_str, base)
+	num, ok := strconv.parse_uint(num_str, base)
 	if !ok {
 		fmt.eprintfln("Parameter %s must be a integer", param_name)
 		os.exit(1)
 	}
-	return num
+	return sign * int(num)
 }
 
 parse_options :: proc(options: ^Options, args: []string) {
@@ -86,7 +93,7 @@ parse_options :: proc(options: ^Options, args: []string) {
 				os.exit(1)
 			}
 			if options.file_name != "" {
-				fmt.eprintln("File name provided twice")
+				fmt.eprintfln("File name provided twice \"%s\" \"%s\"", options.file_name, arg)
 				os.exit(1)
 			}
 			options.file_name = arg
@@ -210,17 +217,30 @@ main :: proc() {
 		os.exit(1)
 	}
 
+	// Rounding options by 16 bytes sections
+	// Flooring o
+	options.o -= options.o & 0xF 
+	// Ceiling n
+	n_frac := options.n & 0xF
+	if n_frac != 0 {
+		options.n -= n_frac
+		options.n += 16
+	}
+	
+	// Starting position of the view
 	start := options.o
 	if start < 0 {
 		start = len(data) + start
 	}
-	start -= start & 0xF
 	
+	// Ending position of the view
 	end := len(data)
 	if options.n != 0 {
-		end = min(len(data), start + options.n)
+		end = start + options.n
 	}
+	end = min(len(data), end) // Make sure end does not exceed file size
 	
+	// Print
 	speed := measure_speed(print_data, data, start, end)
 	fmt.printfln("Printed in %v", speed)
 }
